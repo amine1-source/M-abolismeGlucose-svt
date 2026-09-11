@@ -1,4 +1,4 @@
-// --- CONFIGURATION ---
+// --- CONFIGURATION GLOBALE ---
 const MAX_TIME = 15;
 let currentExp = 'respiration';
 let time = 0;
@@ -7,13 +7,16 @@ let glucoseTime = null;
 let interval = null;
 let chart = null;
 
-// Valeurs de base (idéales) pour éviter que la courbe ne "déraille" avec le bruit
+// Valeurs de base sans bruit
 let baseValues = { o2: 8.0, co2: 1.0, ethanol: 0, ph: 7.0, lactic: 0 };
-// Valeurs affichées (avec un tout petit bruit pour simuler le capteur)
 let currentData = { ...baseValues };
 
-// Données pour le graphique
-let chartData = { labels: [0], datasets: [] };
+// Historique des points sous forme de coordonnées {x, y} pour un tracé parfait
+let datasetsData = {
+    respiration: [ { data: [{x: 0, y: 8.0}] }, { data: [{x: 0, y: 1.0}] } ],
+    lactique: [ { data: [{x: 0, y: 7.0}] }, { data: [{x: 0, y: 0}] } ],
+    alcoolique: [ { data: [{x: 0, y: 1.0}] }, { data: [{x: 0, y: 0}] } ]
+};
 
 const equations = {
     'respiration': 'C₆H₁₂O₆ + 6 O₂ ➔ 6 CO₂ + 6 H₂O + Énergie (38 ATP)',
@@ -21,66 +24,85 @@ const equations = {
     'alcoolique': 'C₆H₁₂O₆ ➔ 2 C₂H₅OH + 2 CO₂ + Énergie (2 ATP)'
 };
 
-// --- INITIALISATION DU GRAPHIQUE (TRÈS STABLE) ---
+// --- INITIALISATION DU GRAPHIQUE ---
 function initChart() {
     const ctx = document.getElementById('exaoChart').getContext('2d');
     
-    // Paramétrage strict des axes pour éviter que le graphique ne saute ou ne se redimensionne tout seul
-    let yAxes = {};
+    // Configuration stricte des axes Y (Gauche = 'y', Droite = 'y1')
+    let yConfig = { type: 'linear', position: 'left', grid: { color: '#334155' } };
+    let y1Config = { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, display: false };
+    let activeDatasets = [];
+
     if (currentExp === 'respiration') {
-        yAxes = { y: { type: 'linear', position: 'left', min: 0, max: 15, title: { display: true, text: 'Concentration (mg/L)', color: '#94a3b8' }, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } } };
+        yConfig.min = 0; yConfig.max = 15; 
+        yConfig.title = { display: true, text: 'Concentration (mg/L)', color: '#94a3b8' };
+        yConfig.ticks = { color: '#94a3b8' };
+        activeDatasets = [
+            { label: 'O₂ (mg/L)', data: datasetsData.respiration[0].data, borderColor: '#3b82f6', yAxisID: 'y' },
+            { label: 'CO₂ (mg/L)', data: datasetsData.respiration[1].data, borderColor: '#eab308', yAxisID: 'y' }
+        ];
     } else if (currentExp === 'lactique') {
-        yAxes = { 
-            yPH: { type: 'linear', position: 'left', min: 4, max: 7.5, title: { display: true, text: 'pH', color: '#ef4444' }, grid: { color: '#334155' }, ticks: { color: '#ef4444' } },
-            yLac: { type: 'linear', position: 'right', min: 0, max: 10, title: { display: true, text: 'Acide Lactique (g/L)', color: '#10b981' }, grid: { drawOnChartArea: false }, ticks: { color: '#10b981' } }
-        };
+        yConfig.min = 4; yConfig.max = 7.5; 
+        yConfig.title = { display: true, text: 'pH', color: '#ef4444' };
+        yConfig.ticks = { color: '#ef4444' };
+        
+        y1Config.display = true;
+        y1Config.min = 0; y1Config.max = 10; 
+        y1Config.title = { display: true, text: 'Acide Lactique (g/L)', color: '#10b981' };
+        y1Config.ticks = { color: '#10b981' };
+        
+        activeDatasets = [
+            { label: 'pH', data: datasetsData.lactique[0].data, borderColor: '#ef4444', yAxisID: 'y' },
+            { label: 'Acide Lactique (g/L)', data: datasetsData.lactique[1].data, borderColor: '#10b981', yAxisID: 'y1' }
+        ];
     } else if (currentExp === 'alcoolique') {
-        yAxes = { 
-            yCO2: { type: 'linear', position: 'left', min: 0, max: 15, title: { display: true, text: 'CO₂ (mg/L)', color: '#eab308' }, grid: { color: '#334155' }, ticks: { color: '#eab308' } },
-            yEth: { type: 'linear', position: 'right', min: 0, max: 5, title: { display: true, text: 'Éthanol (g/L)', color: '#f472b6' }, grid: { drawOnChartArea: false }, ticks: { color: '#f472b6' } }
-        };
+        yConfig.min = 0; yConfig.max = 15; 
+        yConfig.title = { display: true, text: 'CO₂ (mg/L)', color: '#eab308' };
+        yConfig.ticks = { color: '#eab308' };
+        
+        y1Config.display = true;
+        y1Config.min = 0; y1Config.max = 5; 
+        y1Config.title = { display: true, text: 'Éthanol (g/L)', color: '#f472b6' };
+        y1Config.ticks = { color: '#f472b6' };
+        
+        activeDatasets = [
+            { label: 'CO₂ (mg/L)', data: datasetsData.alcoolique[0].data, borderColor: '#eab308', yAxisID: 'y' },
+            { label: 'Éthanol (g/L)', data: datasetsData.alcoolique[1].data, borderColor: '#f472b6', yAxisID: 'y1' }
+        ];
     }
 
     if (chart) chart.destroy();
 
     chart = new Chart(ctx, {
         type: 'line',
-        data: chartData,
+        data: { datasets: activeDatasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: false, // <-- DÉSACTIVE LES ANIMATIONS DE SAUTS (CORRECTION DU PROBLÈME)
+            animation: false, // Force le tracé instantané
             elements: { 
-                point: { radius: 0 }, // Cache les gros points pour lisser la ligne
-                line: { borderWidth: 3, tension: 0.4 } // Tension = Courbure lisse comme Recharts
+                point: { radius: 0 }, 
+                line: { borderWidth: 3, tension: 0.4 } 
             },
             scales: {
-                x: { min: 0, max: MAX_TIME, title: { display: true, text: 'Temps (min)', color: '#94a3b8' }, grid: { color: '#334155', drawBorder: false }, ticks: { color: '#94a3b8' } },
-                ...yAxes
+                // L'axe X est forcé à être Linéaire et bloqué de 0 à 15
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: MAX_TIME,
+                    title: { display: true, text: 'Temps (min)', color: '#94a3b8' },
+                    grid: { color: '#334155', drawBorder: false },
+                    ticks: { color: '#94a3b8', stepSize: 1 }
+                },
+                y: yConfig,
+                y1: y1Config
             },
             plugins: {
                 legend: { labels: { color: '#f8fafc', font: { weight: 'bold' } } },
-                annotation: { annotations: {} } // Préparation pour le trait "Glucose"
+                annotation: { annotations: {} }
             }
         }
     });
-
-    updateDatasetsConfig();
-}
-
-function updateDatasetsConfig() {
-    chartData.datasets = [];
-    if (currentExp === 'respiration') {
-        chartData.datasets.push({ label: 'O₂', data: [currentData.o2], borderColor: '#3b82f6', yAxisID: 'y' });
-        chartData.datasets.push({ label: 'CO₂', data: [currentData.co2], borderColor: '#eab308', yAxisID: 'y' });
-    } else if (currentExp === 'lactique') {
-        chartData.datasets.push({ label: 'pH', data: [currentData.ph], borderColor: '#ef4444', yAxisID: 'yPH' });
-        chartData.datasets.push({ label: 'Acide Lactique', data: [currentData.lactic], borderColor: '#10b981', yAxisID: 'yLac' });
-    } else if (currentExp === 'alcoolique') {
-        chartData.datasets.push({ label: 'CO₂', data: [currentData.co2], borderColor: '#eab308', yAxisID: 'yCO2' });
-        chartData.datasets.push({ label: 'Éthanol', data: [currentData.ethanol], borderColor: '#f472b6', yAxisID: 'yEth' });
-    }
-    chart.update('none');
 }
 
 // --- GÉNÉRATION VISUELLE DES BÉCHERS (PAILLASSE) ---
@@ -147,7 +169,7 @@ function renderPaillasse() {
                 <div class="text-xs font-medium ${hasAlcohol ? 'text-amber-600' : 'text-slate-500'}">${hasAlcohol ? "Forte odeur d'alcool" : "Aucune odeur"}</div>
             </div>`;
     }
-    container.innerHTML = html;
+    document.getElementById('paillasse-container').innerHTML = html;
 }
 
 // --- MOTEUR DE CALCUL ---
@@ -157,21 +179,19 @@ function tick() {
 
     const hasGlucose = glucoseTime !== null && time >= glucoseTime;
 
-    // Calcul propre de la tendance (sans bruit)
     if (currentExp === 'respiration') {
         baseValues.o2 -= hasGlucose ? 0.6 : 0.05;
         baseValues.co2 += hasGlucose ? 0.6 : 0.05;
-        baseValues.o2 = Math.max(0, baseValues.o2); // Pas de négatif
+        baseValues.o2 = Math.max(0, baseValues.o2);
     } else if (currentExp === 'lactique') {
         baseValues.ph -= hasGlucose ? 0.15 : 0.01;
         baseValues.lactic += hasGlucose ? 0.4 : 0.01;
-        baseValues.ph = Math.max(4.2, baseValues.ph); // Bloqué à pH 4.2
+        baseValues.ph = Math.max(4.2, baseValues.ph);
     } else if (currentExp === 'alcoolique') {
         baseValues.co2 += hasGlucose ? 0.4 : 0.05;
         baseValues.ethanol += hasGlucose ? 0.25 : 0;
     }
 
-    // Ajout d'un tout petit bruit uniquement à l'affichage pour simuler un vrai capteur
     const getNoise = () => (Math.random() - 0.5) * 0.05;
     
     currentData = {
@@ -182,20 +202,18 @@ function tick() {
         lactic: baseValues.lactic + getNoise()
     };
 
-    // Ajout aux graphiques
-    chartData.labels.push(time);
+    // Ajout des points sous forme de coordonnées {x, y}
     if (currentExp === 'respiration') {
-        chartData.datasets[0].data.push(currentData.o2);
-        chartData.datasets[1].data.push(currentData.co2);
+        datasetsData.respiration[0].data.push({ x: time, y: currentData.o2 });
+        datasetsData.respiration[1].data.push({ x: time, y: currentData.co2 });
     } else if (currentExp === 'lactique') {
-        chartData.datasets[0].data.push(currentData.ph);
-        chartData.datasets[1].data.push(currentData.lactic);
+        datasetsData.lactique[0].data.push({ x: time, y: currentData.ph });
+        datasetsData.lactique[1].data.push({ x: time, y: currentData.lactic });
     } else if (currentExp === 'alcoolique') {
-        chartData.datasets[0].data.push(currentData.co2);
-        chartData.datasets[1].data.push(currentData.ethanol);
+        datasetsData.alcoolique[0].data.push({ x: time, y: currentData.co2 });
+        datasetsData.alcoolique[1].data.push({ x: time, y: currentData.ethanol });
     }
     
-    // Le mode 'none' force un dessin immédiat et ultra-fluide sans "soubresauts"
     chart.update('none');
     renderPaillasse();
 
@@ -222,12 +240,15 @@ function resetSimulation() {
     glucoseTime = null;
     baseValues = { o2: 8.0, co2: 1.0, ethanol: 0, ph: 7.0, lactic: 0 };
     currentData = { ...baseValues };
-    chartData.labels = [0];
     
-    // Effacer la ligne de glucose
-    chart.options.plugins.annotation.annotations = {};
+    // Réinitialisation de l'historique des données
+    datasetsData = {
+        respiration: [ { data: [{x: 0, y: 8.0}] }, { data: [{x: 0, y: 1.0}] } ],
+        lactique: [ { data: [{x: 0, y: 7.0}] }, { data: [{x: 0, y: 0}] } ],
+        alcoolique: [ { data: [{x: 0, y: 1.0}] }, { data: [{x: 0, y: 0}] } ]
+    };
     
-    updateDatasetsConfig();
+    initChart();
     document.getElementById('time-display').innerText = `T = 0.0 min`;
     renderPaillasse();
     updateButtonsState();
@@ -237,12 +258,12 @@ function injectGlucose() {
     if (glucoseTime === null && isRunning) {
         glucoseTime = time;
         
-        // Dessine la ligne verticale verte pour l'injection
+        // Dessine la ligne verticale d'injection
         chart.options.plugins.annotation.annotations = {
             line1: {
                 type: 'line',
-                xMin: glucoseTime,
-                xMax: glucoseTime,
+                scaleID: 'x',
+                value: glucoseTime,
                 borderColor: '#10b981',
                 borderWidth: 2,
                 borderDash: [5, 5],
@@ -250,7 +271,6 @@ function injectGlucose() {
             }
         };
         chart.update('none');
-        
         updateButtonsState();
     }
 }
@@ -286,7 +306,6 @@ function switchExp(expName) {
     if (expName === 'lactique') activeBtn.classList.add('border-pink-500', 'bg-pink-50', 'text-pink-700');
     if (expName === 'alcoolique') activeBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
 
-    initChart();
     resetSimulation();
 }
 
@@ -299,5 +318,5 @@ document.getElementById('btn-respiration').addEventListener('click', () => switc
 document.getElementById('btn-lactique').addEventListener('click', () => switchExp('lactique'));
 document.getElementById('btn-alcoolique').addEventListener('click', () => switchExp('alcoolique'));
 
-// Lancement de la première page
+// Lancement
 switchExp('respiration');
