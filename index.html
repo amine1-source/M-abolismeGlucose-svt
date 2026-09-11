@@ -3,78 +3,355 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laboratoire ExAO - Métabolisme du Glucose</title>
+    <title>Métabolisme du Glucose: Respiration et Fermentation - Pr Amine OUCHKIR</title>
+    
     <!-- Tailwind CSS pour le design -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js pour les graphiques (plus facile à utiliser en Vanilla JS que Recharts) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Lien vers notre fichier CSS -->
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- React & ReactDOM (Versions de production) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (Configuration spécifique pour éviter les erreurs de navigateur) -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js" data-type="module"></script>
+    
+    <!-- Recharts (La librairie de graphiques utilisée dans la Preview) -->
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+    
+    <!-- Lucide Icons (Remplacement simple par des icônes SVG en ligne pour éviter les problèmes de CDN) -->
+
+    <style>
+        /* Styles personnalisés pour les béchers animés (Identique à la preview) */
+        .lime-water-beaker, .milk-beaker { position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; margin: 0 8px; }
+        .beaker-top { width: 96px; height: 8px; border: 3px solid #94a3b8; border-bottom: 0; border-radius: 2px 2px 0 0; }
+        .beaker-body { position: relative; width: 80px; height: 96px; border: 3px solid #94a3b8; border-top: 0; border-radius: 0 0 16px 16px; overflow: hidden; background-color: white; }
+        .beaker-liquid { position: absolute; bottom: 0; width: 100%; transition: all 1s ease-in-out; }
+        .lime-liquid-clear { height: 75%; background-color: #ecfeff; }
+        .lime-liquid-cloudy { height: 75%; background-color: #e2e8f0; }
+        .liquid-surface { position: absolute; top: 0; width: 100%; height: 6px; }
+        .surface-clear { background-color: #cffafe; }
+        .surface-cloudy { background-color: #cbd5e1; }
+        .particles { position: absolute; inset: 0; transition: opacity 1s; opacity: 0; background-image: radial-gradient(circle, #94a3b8 2px, transparent 2px); background-size: 8px 8px; }
+        .particles.show { opacity: 0.4; }
+
+        /* Animation Jauge pH */
+        .ph-gauge { position: relative; width: 100%; height: 12px; border-radius: 9999px; background: linear-gradient(to right, #ef4444, #facc15, #22c55e); box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05); }
+        .ph-needle { position: absolute; top: -10px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1e293b; transition: left 0.3s ease; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans min-h-screen p-4">
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen">
+    
+    <div id="root"></div>
 
-    <div class="max-w-6xl mx-auto space-y-6">
-        
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <h1 class="text-2xl font-bold text-slate-800 mb-6 text-center">Laboratoire ExAO : Métabolisme du Glucose</h1>
-            
-            <!-- Sélecteur d'expérience -->
-            <div class="grid md:grid-cols-3 gap-3 mb-6">
-                <button id="btn-respiration" class="exp-btn active p-3 rounded-xl border-2 transition-all font-bold text-sm">1. Respiration Cellulaire</button>
-                <button id="btn-lactique" class="exp-btn inactive p-3 rounded-xl border-2 transition-all font-bold text-sm">2. Fermentation Lactique</button>
-                <button id="btn-alcoolique" class="exp-btn inactive p-3 rounded-xl border-2 transition-all font-bold text-sm">3. Fermentation Alcoolique</button>
-            </div>
+    <script type="text/babel">
+        // --- EXTRACTION DES COMPOSANTS DE RECHARTS ---
+        const { useState, useEffect } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = window.Recharts;
 
-            <div class="grid lg:grid-cols-3 gap-6">
-                
-                <!-- Graphique ExAO -->
-                <div class="lg:col-span-2 bg-slate-900 rounded-2xl p-4 shadow-inner border border-slate-800">
-                    <div class="flex justify-between items-center mb-2 px-2 text-slate-300 font-semibold text-sm">
-                        <span>Moniteur ExAO</span>
-                        <span class="text-emerald-400 font-mono" id="time-display">T = 0.0 min</span>
-                    </div>
-                    
-                    <div class="mx-2 mb-4 p-2 bg-slate-800 border border-slate-700 rounded-lg text-center">
-                        <span class="text-xs text-slate-400 uppercase font-bold mr-2">Réaction Globale :</span>
-                        <span class="font-mono text-sm text-yellow-400 font-bold" id="reaction-equation">
-                            C₆H₁₂O₆ + 6 O₂ ➔ 6 CO₂ + 6 H₂O + Énergie (38 ATP)
-                        </span>
-                    </div>
-
-                    <div style="height: 450px; width: 100%;">
-                        <canvas id="exaoChart"></canvas>
-                    </div>
-                    
-                    <div class="text-center text-xs text-slate-500 italic mt-3 font-medium">
-                        * Réalisé par : Pr Amine OUCHKIR | Lycée qualifiant Abou EL Kacim Ezzayani - Khénifra
+        // --- COMPOSANTS VISUELS (BÉCHERS) ---
+        const LimeWaterBeaker = ({ isCloudy }) => (
+            <div className="lime-water-beaker">
+                <div className="beaker-top"></div>
+                <div className="beaker-body">
+                    <div className={`beaker-liquid ${isCloudy ? 'lime-liquid-cloudy' : 'lime-liquid-clear'}`}>
+                        <div className={`liquid-surface ${isCloudy ? 'surface-cloudy' : 'surface-clear'}`}></div>
+                        <div className={`particles ${isCloudy ? 'show' : ''}`}></div>
                     </div>
                 </div>
+            </div>
+        );
 
-                <!-- Contrôles et Paillasse -->
-                <div class="flex flex-col gap-4">
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                        <div class="flex gap-2 mb-4">
-                            <button id="btn-start" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded font-bold transition-all">Démarrer</button>
-                            <button id="btn-pause" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white p-2 rounded font-bold transition-all" disabled>Pause</button>
-                            <button id="btn-reset" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 rounded font-bold transition-all">↻</button>
+        const MilkBeaker = ({ isCoagulated }) => (
+            <div className="milk-beaker">
+                <div className="beaker-top"></div>
+                <div className="beaker-body" style={{boxShadow: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)'}}>
+                    <div style={{position: 'absolute', inset: 0, backgroundColor: '#f8fafc'}}></div>
+                    
+                    {/* Petit-lait */}
+                    <div style={{
+                        position: 'absolute', top: 0, width: '100%', transition: 'all 1s ease-in-out',
+                        height: isCoagulated ? '35%' : '0', backgroundColor: isCoagulated ? 'rgba(254, 249, 195, 0.8)' : 'transparent'
+                    }}></div>
+                    
+                    {/* Caillé */}
+                    <div style={{
+                        position: 'absolute', bottom: 0, width: '100%', transition: 'all 1s ease-in-out', borderTop: '1px solid #e2e8f0',
+                        height: isCoagulated ? '65%' : '100%', backgroundColor: isCoagulated ? 'white' : '#f8fafc',
+                        borderColor: isCoagulated ? '#e2e8f0' : 'transparent', boxShadow: isCoagulated ? '0 1px 2px 0 rgb(0 0 0 / 0.05)' : 'none'
+                    }}>
+                        <div style={{position: 'absolute', inset: 0, transition: 'opacity 1s', opacity: isCoagulated ? 1 : 0}}>
+                            <div style={{width: '100%', height: '100%', backgroundImage: 'radial-gradient(ellipse at center, #cbd5e1 30%, transparent 30%)', backgroundSize: '8px 8px', opacity: 0.6}}></div>
+                            <div style={{position: 'absolute', top: 0, width: '100%', height: '6px', backgroundColor: 'white'}}></div>
                         </div>
-                        <button id="btn-glucose" class="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded font-bold border border-blue-200 transition-all opacity-50 cursor-not-allowed" disabled>+ Injecter le Glucose</button>
                     </div>
+                </div>
+            </div>
+        );
 
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 flex-1">
-                        <h4 class="font-bold text-slate-700 mb-4 text-center">Observations (Paillasse)</h4>
+        const PHGauge = ({ ph }) => {
+            const clampedPh = Math.max(4, Math.min(7.5, ph));
+            const percentage = ((clampedPh - 4) / (7.5 - 4)) * 100;
+            return (
+                <div style={{width: '100%', padding: '8px 0'}}>
+                    <div className="ph-gauge">
+                        <div className="ph-needle" style={{ left: `calc(${percentage}% - 6px)` }}></div>
+                        <div style={{ position: 'absolute', top: 0, bottom: 0, width: '2px', backgroundColor: '#1e293b', opacity: 0.5, transition: 'left 0.3s ease', left: `${percentage}%`}}></div>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', color: '#64748b', marginTop: '8px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>
+                        <span style={{color: '#dc2626'}}>Acide (4)</span>
+                        <span style={{color: '#15803d'}}>Neutre (7)</span>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- APPLICATION PRINCIPALE ---
+        const MAX_TIME = 15;
+        const getInitialData = (type) => {
+            if (type === 'respiration') return { time: 0, o2: 8.0, co2: 1.0, ethanol: 0, ph: 7.0, lactic: 0 };
+            if (type === 'lactique') return { time: 0, o2: 0, co2: 0, ethanol: 0, ph: 6.8, lactic: 0 };
+            return { time: 0, o2: 0, co2: 1.0, ethanol: 0, ph: 7.0, lactic: 0 };
+        };
+
+        function Labo() {
+            const [expType, setExpType] = useState('respiration');
+            const [data, setData] = useState([getInitialData('respiration')]);
+            const [time, setTime] = useState(0);
+            const [isRunning, setIsRunning] = useState(false);
+            const [glucoseTime, setGlucoseTime] = useState(null);
+
+            // Moteur de temps
+            useEffect(() => {
+                let interval;
+                if (isRunning && time < MAX_TIME) {
+                    interval = setInterval(() => {
+                        setTime(t => parseFloat((t + 0.2).toFixed(1)));
+                    }, 800); // Vitesse : 800ms
+                } else if (time >= MAX_TIME) {
+                    setIsRunning(false);
+                }
+                return () => clearInterval(interval);
+            }, [isRunning, time]);
+
+            // Moteur de calcul des valeurs
+            useEffect(() => {
+                if (time === 0) return;
+                const lastData = data[data.length - 1];
+                if (lastData.time === time) return;
+
+                let { o2, co2, ethanol, ph, lactic } = lastData;
+                const hasGlucose = glucoseTime !== null && time >= glucoseTime;
+
+                // Logique chimique
+                if (expType === 'respiration') {
+                    if (hasGlucose) { o2 = Math.max(0, o2 - 0.6); co2 = co2 + 0.6; } 
+                    else { o2 = Math.max(0, o2 - 0.05); co2 = co2 + 0.05; }
+                } else if (expType === 'lactique') {
+                    if (hasGlucose) { ph = Math.max(4.2, ph - 0.15); lactic = lactic + 0.4; } 
+                    else { ph = Math.max(4.2, ph - 0.01); lactic = lactic + 0.01; }
+                } else if (expType === 'alcoolique') {
+                    if (hasGlucose) { co2 = co2 + 0.4; ethanol = ethanol + 0.25; } 
+                    else { co2 = co2 + 0.05; }
+                }
+
+                // Ajout du "bruit" pour simuler de vraies sondes
+                const noise = () => (Math.random() - 0.5) * 0.1;
+
+                setData(prev => [...prev, { 
+                    time, 
+                    o2: Math.max(0, parseFloat((o2 + (expType === 'respiration' ? noise() : 0)).toFixed(2))), 
+                    co2: Math.max(0, parseFloat((co2 + (expType !== 'lactique' ? noise() : 0)).toFixed(2))), 
+                    ethanol: Math.max(0, parseFloat((ethanol + (expType === 'alcoolique' ? noise() : 0)).toFixed(2))),
+                    ph: parseFloat((ph + (expType === 'lactique' ? noise()*0.5 : 0)).toFixed(2)),
+                    lactic: Math.max(0, parseFloat((lactic + (expType === 'lactique' ? noise() : 0)).toFixed(2)))
+                }]);
+            }, [time, glucoseTime, expType, data]);
+
+            // Contrôles
+            const handleExpChange = (type) => { setExpType(type); setIsRunning(false); setTime(0); setGlucoseTime(null); setData([getInitialData(type)]); };
+            const startExAO = () => setIsRunning(true);
+            const pauseExAO = () => setIsRunning(false);
+            const resetExAO = () => { setIsRunning(false); setTime(0); setGlucoseTime(null); setData([getInitialData(expType)]); };
+            const injectGlucose = () => { if (glucoseTime === null) setGlucoseTime(time); };
+
+            const currentData = data[data.length - 1];
+
+            return (
+                <div className="max-w-6xl mx-auto p-4 space-y-6">
+                    
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                        <h1 className="text-2xl font-bold text-slate-800 mb-6 text-center">Laboratoire ExAO : Métabolisme du Glucose</h1>
                         
-                        <!-- Zone Paillasse Dynamique -->
-                        <div id="paillasse-container" class="space-y-4">
-                            <!-- Le contenu sera injecté par Javascript -->
+                        <div className="grid md:grid-cols-3 gap-3 mb-6">
+                            <button onClick={() => handleExpChange('respiration')} className={`p-3 rounded-xl border-2 transition-all font-bold text-sm ${expType === 'respiration' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-600 hover:border-slate-300'}`}>
+                                1. Respiration Cellulaire
+                            </button>
+                            <button onClick={() => handleExpChange('lactique')} className={`p-3 rounded-xl border-2 transition-all font-bold text-sm ${expType === 'lactique' ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-slate-100 text-slate-600 hover:border-slate-300'}`}>
+                                2. Fermentation Lactique
+                            </button>
+                            <button onClick={() => handleExpChange('alcoolique')} className={`p-3 rounded-xl border-2 transition-all font-bold text-sm ${expType === 'alcoolique' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-100 text-slate-600 hover:border-slate-300'}`}>
+                                3. Fermentation Alcoolique
+                            </button>
+                        </div>
+
+                        <div className="grid lg:grid-cols-3 gap-6">
+                            
+                            {/* Moniteur ExAO (Graphiques) */}
+                            <div className="lg:col-span-2 bg-slate-900 rounded-2xl p-4 shadow-inner border border-slate-800 flex flex-col">
+                                <div className="flex justify-between items-center mb-2 px-2">
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 text-sm">Moniteur ExAO</h3>
+                                    <div className="text-emerald-400 font-mono text-sm">T = {time.toFixed(1)} min</div>
+                                </div>
+                                
+                                <div className="mx-2 mb-4 p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-center overflow-x-auto whitespace-nowrap">
+                                    <span className="text-xs text-slate-400 uppercase tracking-wide font-bold mr-2">Réaction Globale :</span>
+                                    <span className="font-mono text-sm text-yellow-400 font-bold">
+                                        {expType === 'respiration' && 'C₆H₁₂O₆ + 6 O₂ ➔ 6 CO₂ + 6 H₂O + Énergie (38 ATP)'}
+                                        {expType === 'lactique' && 'C₆H₁₂O₆ ➔ 2 CH₃-CHOH-COOH + Énergie (2 ATP)'}
+                                        {expType === 'alcoolique' && 'C₆H₁₂O₆ ➔ 2 C₂H₅OH + 2 CO₂ + Énergie (2 ATP)'}
+                                    </span>
+                                </div>
+
+                                {/* Zone du graphique avec Recharts */}
+                                <div className="flex-1 min-h-[550px] w-full mt-2">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={data} margin={{ top: 5, right: 20, bottom: 20, left: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                            <XAxis dataKey="time" stroke="#94a3b8" type="number" domain={[0, MAX_TIME]} label={{ value: 'Temps (min)', position: 'insideBottomRight', offset: -10, fill: '#94a3b8', fontSize: 12 }} />
+                                            
+                                            {expType === 'respiration' && <YAxis yAxisId="left" stroke="#94a3b8" domain={[0, 15]} label={{ value: 'Concentration (mg/L)', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 12 }} />}
+                                            
+                                            {expType === 'lactique' && (
+                                                <>
+                                                    <YAxis yAxisId="left" stroke="#ef4444" domain={[4, 7.5]} label={{ value: 'pH', angle: -90, position: 'insideLeft', fill: '#ef4444', fontSize: 12 }} />
+                                                    <YAxis yAxisId="right" orientation="right" stroke="#10b981" domain={[0, 10]} label={{ value: 'Acide Lactique (g/L)', angle: 90, position: 'insideRight', fill: '#10b981', fontSize: 12 }} />
+                                                </>
+                                            )}
+                                            
+                                            {expType === 'alcoolique' && (
+                                                <>
+                                                    <YAxis yAxisId="left" stroke="#eab308" domain={[0, 15]} label={{ value: 'CO₂ (mg/L)', angle: -90, position: 'insideLeft', fill: '#eab308', fontSize: 12 }} />
+                                                    <YAxis yAxisId="right" orientation="right" stroke="#f472b6" domain={[0, 5]} label={{ value: 'Éthanol (g/L)', angle: 90, position: 'insideRight', fill: '#f472b6', fontSize: 12 }} />
+                                                </>
+                                            )}
+
+                                            <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }} itemStyle={{ fontWeight: 'bold' }} />
+                                            <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
+                                            
+                                            {glucoseTime !== null && <ReferenceLine x={glucoseTime} yAxisId="left" stroke="#10b981" strokeDasharray="3 3" label={{ position: 'top', value: '+ Injection Glucose', fill: '#10b981', fontSize: 12, fontWeight: 'bold' }} />}
+
+                                            {/* Tracé des courbes (isAnimationActive=false pour la fluidité) */}
+                                            {expType === 'respiration' && (
+                                                <>
+                                                    <Line yAxisId="left" type="monotone" dataKey="o2" name="O₂ (mg/L)" stroke="#3b82f6" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                    <Line yAxisId="left" type="monotone" dataKey="co2" name="CO₂ (mg/L)" stroke="#eab308" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                </>
+                                            )}
+                                            
+                                            {expType === 'lactique' && (
+                                                <>
+                                                    <Line yAxisId="left" type="monotone" dataKey="ph" name="pH" stroke="#ef4444" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                    <Line yAxisId="right" type="monotone" dataKey="lactic" name="Acide Lactique (g/L)" stroke="#10b981" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                </>
+                                            )}
+                                            
+                                            {expType === 'alcoolique' && (
+                                                <>
+                                                    <Line yAxisId="left" type="monotone" dataKey="co2" name="CO₂ (mg/L)" stroke="#eab308" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                    <Line yAxisId="right" type="monotone" dataKey="ethanol" name="Éthanol (g/L)" stroke="#f472b6" strokeWidth={3} dot={false} isAnimationActive={false} />
+                                                </>
+                                            )}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                <div className="text-center text-xs text-slate-500 italic mt-3 font-medium">
+                                    * Réalisé par : Pr Amine OUCHKIR | Lycée qualifiant Abou EL Kacim Ezzayani - Khénifra
+                                </div>
+                            </div>
+
+                            {/* Contrôles et Paillasse */}
+                            <div className="flex flex-col gap-4">
+                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                                    <div className="flex gap-2 mb-4">
+                                        <button onClick={startExAO} disabled={time >= MAX_TIME || isRunning} className="flex-1 bg-emerald-600 text-white p-2 rounded font-bold disabled:opacity-50 hover:bg-emerald-700 transition-colors">Démarrer</button>
+                                        <button onClick={pauseExAO} disabled={!isRunning} className="flex-1 bg-amber-500 text-white p-2 rounded font-bold disabled:opacity-50 hover:bg-amber-600 transition-colors">Pause</button>
+                                        <button onClick={resetExAO} className="bg-slate-200 text-slate-700 px-4 rounded font-bold hover:bg-slate-300 transition-colors">↻</button>
+                                    </div>
+                                    <button onClick={injectGlucose} disabled={glucoseTime !== null || !isRunning} className="w-full bg-blue-100 text-blue-700 p-2 rounded font-bold border border-blue-200 disabled:opacity-50 hover:bg-blue-200 transition-colors">+ Injection Glucose</button>
+                                </div>
+
+                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex-1">
+                                    <h4 className="font-bold text-slate-700 mb-4 text-center">Observations (Paillasse)</h4>
+                                    
+                                    <div className="space-y-4">
+                                        {/* Paillasse Respiration */}
+                                        {expType === 'respiration' && (
+                                            <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                <LimeWaterBeaker isCloudy={currentData.co2 > 5} />
+                                                <div>
+                                                    <div className="text-sm font-bold text-slate-700">Eau de chaux</div>
+                                                    <div className={`text-xs font-medium transition-colors duration-1000 ${currentData.co2 > 5 ? 'text-slate-600' : 'text-blue-600'}`}>
+                                                        {currentData.co2 > 5 ? 'Trouble (Dégagement de CO₂)' : 'Limpide'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Paillasse Lactique */}
+                                        {expType === 'lactique' && (
+                                            <>
+                                                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="text-sm font-bold text-slate-700">Mesure du pH</div>
+                                                        <div className={`font-mono font-bold text-sm ${currentData.ph < 5.5 ? 'text-red-600' : 'text-green-600'}`}>pH = {currentData.ph.toFixed(1)}</div>
+                                                    </div>
+                                                    <PHGauge ph={currentData.ph} />
+                                                </div>
+                                                <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                    <MilkBeaker isCoagulated={currentData.ph < 5.5} />
+                                                    <div className="flex-1">
+                                                        <div className="text-sm font-bold text-slate-700">Aspect du Lait</div>
+                                                        <div className={`text-xs font-medium mt-1 transition-colors duration-1000 ${currentData.ph < 5.5 ? 'text-amber-700' : 'text-slate-500'}`}>
+                                                            {currentData.ph < 5.5 ? 'Coagulé (Caillé)' : 'Liquide normal'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* Paillasse Alcoolique */}
+                                        {expType === 'alcoolique' && (
+                                            <>
+                                                <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                    <LimeWaterBeaker isCloudy={currentData.co2 > 3} />
+                                                    <div>
+                                                        <div className="text-sm font-bold text-slate-700">Eau de chaux</div>
+                                                        <div className={`text-xs font-medium transition-colors duration-1000 ${currentData.co2 > 3 ? 'text-slate-600' : 'text-blue-600'}`}>
+                                                            {currentData.co2 > 3 ? 'Trouble (Dégagement de CO₂)' : 'Limpide'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div className="text-sm font-bold text-slate-700">Test d'Odeur</div>
+                                                    <div className={`text-xs font-medium mt-1 transition-colors duration-1000 ${currentData.ethanol > 0.5 ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                        {currentData.ethanol > 0.5 ? "Forte odeur d'alcool (Éthanol)" : "Aucune odeur"}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
+            );
+        }
 
-    <!-- Lien vers notre fichier JS -->
-    <script src="script.js"></script>
+        // Lancement de l'application React
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Labo />);
+    </script>
 </body>
 </html>
