@@ -1,0 +1,40 @@
+/* Styles des boutons du haut */
+.exp-btn { transition: all 0.3s ease; }
+.exp-btn.active { border-color: #3b82f6; background-color: #eff6ff; color: #1d4ed8; }
+.exp-btn.inactive { border-color: #f1f5f9; background-color: transparent; color: #475569; }
+.exp-btn.inactive:hover { border-color: #cbd5e1; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Bécher Eau de Chaux */
+.lime-water-beaker { position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; margin: 0 8px; }
+.beaker-top { width: 96px; height: 8px; border: 3px solid #94a3b8; border-bottom: 0; border-radius: 2px 2px 0 0; }
+.beaker-body { position: relative; width: 80px; height: 96px; border: 3px solid #94a3b8; border-top: 0; border-radius: 0 0 16px 16px; overflow: hidden; background-color: white; }
+.beaker-liquid { position: absolute; bottom: 0; width: 100%; transition: all 1s ease-in-out; height: 75%; }
+.lime-liquid-clear { background-color: #ecfeff; }
+.lime-liquid-cloudy { background-color: #e2e8f0; }
+.liquid-surface { position: absolute; top: 0; width: 100%; height: 6px; }
+.surface-clear { background-color: #cffafe; }
+.surface-cloudy { background-color: #cbd5e1; }
+.particles { position: absolute; inset: 0; transition: opacity 1s; opacity: 0; background-image: radial-gradient(circle, #94a3b8 2px, transparent 2px); background-size: 8px 8px; }
+.particles.show { opacity: 0.4; }
+
+/* Bécher Lait */
+.milk-beaker { position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; margin: 0 8px; }
+.milk-body { position: relative; width: 80px; height: 96px; border: 3px solid #94a3b8; border-top: 0; border-radius: 0 0 16px 16px; overflow: hidden; background-color: white; box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05); }
+.milk-bg { position: absolute; inset: 0; background-color: #f8fafc; }
+.milk-whey { position: absolute; top: 0; width: 100%; transition: all 1s ease-in-out; }
+.whey-normal { height: 0; background-color: transparent; }
+.whey-coagulated { height: 35%; background-color: rgba(254, 249, 195, 0.8); }
+.milk-curd { position: absolute; bottom: 0; width: 100%; transition: all 1s ease-in-out; }
+.curd-normal { height: 100%; background-color: #f8fafc; border-top: 1px solid transparent; }
+.curd-coagulated { height: 65%; background-color: white; border-top: 1px solid #e2e8f0; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+.curd-texture { position: absolute; inset: 0; transition: opacity 1s; opacity: 0; }
+.curd-texture.show { opacity: 1; }
+.curd-dots { width: 100%; height: 100%; background-image: radial-gradient(ellipse at center, #cbd5e1 30%, transparent 30%); background-size: 8px 8px; opacity: 0.6; }
+.curd-surface { position: absolute; top: 0; width: 100%; height: 6px; background-color: white; }
+
+/* Jauge pH */
+.ph-gauge-container { width: 100%; padding: 8px 0; }
+.ph-gauge { position: relative; width: 100%; height: 12px; border-radius: 9999px; background: linear-gradient(to right, #ef4444, #facc15, #22c55e); box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05); }
+.ph-needle { position: absolute; top: -10px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1e293b; transition: left 0.3s ease; }
+.ph-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #1e293b; opacity: 0.5; transition: left 0.3s ease; }
